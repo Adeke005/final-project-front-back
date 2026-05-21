@@ -5,7 +5,7 @@ from slowapi.errors import RateLimitExceeded
 
 from database import Base, engine
 from rate_limiter import limiter
-from routers import assignments, auth, categories, certificate, courses, lessons, progress, quiz, users
+from routers import account, assignments, auth, categories, certificate, courses, lessons, progress, quiz, users
 
 # Student style: create tables on startup
 Base.metadata.create_all(bind=engine)
@@ -23,14 +23,15 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(account.router)
 app.include_router(courses.router)
-#app.include_router(lessons.router)
+app.include_router(lessons.router)
 app.include_router(categories.router)
-#app.include_router(quiz.router)
-#app.include_router(certificate.router)
+app.include_router(quiz.router)
+app.include_router(certificate.router)
 app.include_router(users.router)
-#app.include_router(progress.router)
-#app.include_router(assignments.router)
+app.include_router(progress.router)
+app.include_router(assignments.router)
 
 
 @app.get("/")

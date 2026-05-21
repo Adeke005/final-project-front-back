@@ -48,3 +48,11 @@ def get_course_progress(
     if progress is None:
         raise HTTPException(status_code=404, detail="Progress not started")
     return progress
+
+
+@router.get("/my", response_model=list[UserProgressOut])
+def get_my_progress(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return db.query(UserProgress).filter(UserProgress.user_id == current_user.id).all()

@@ -10,3 +10,7 @@ export function startCourseProgress(courseId, token) {
 export function getCourseProgress(courseId, token) {
   return requestApi(`/progress/course/${courseId}`, { token });
 }
+
+export function getMyProgress(token) {
+  return requestApi("/progress/my", { token });
+}

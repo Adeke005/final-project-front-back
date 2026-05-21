@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StudentCoursera</title>
+    <script>
+      (function setInitialTheme() {
+        try {
+          var key = "ui_theme_mode";
+          var savedTheme = localStorage.getItem(key);
+          if (savedTheme !== "light" && savedTheme !== "dark") {
+            savedTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.setAttribute("data-theme", savedTheme);
+        } catch (error) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

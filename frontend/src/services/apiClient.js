@@ -15,27 +15,23 @@ export async function requestApi(path, options = {}) {
   });
 
   if (response.status === 401 && !options.skipAuthRefresh && canRefresh(path)) {
-    try {
-      const newToken = await refreshAccessTokenInternal();
-      if (newToken) {
-        headers.Authorization = `Bearer ${newToken}`;
-      } else {
-        delete headers.Authorization;
-      }
-      response = await fetch(`${API_URL}${path}`, {
-        method: options.method || "GET",
-        headers,
-        body: options.body ? JSON.stringify(options.body) : undefined,
-      });
-    } catch (error) {
-      throw error;
+    const newToken = await refreshAccessTokenInternal();
+    if (newToken) {
+      headers.Authorization = `Bearer ${newToken}`;
+    } else {
+      delete headers.Authorization;
     }
+    response = await fetch(`${API_URL}${path}`, {
+      method: options.method || "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
   }
 
   let data = null;
   try {
     data = await response.json();
-  } catch (error) {
+  } catch {
     data = null;
   }
 
@@ -72,7 +68,7 @@ async function refreshAccessTokenInternal() {
     let data = null;
     try {
       data = await response.json();
-    } catch (error) {
+    } catch {
       data = null;
     }
 
@@ -97,4 +93,5 @@ function clearStoredAuth() {
   localStorage.removeItem("token");
   localStorage.removeItem("refresh_token");
   localStorage.removeItem("user");
+  window.dispatchEvent(new Event("auth:expired"));
 }

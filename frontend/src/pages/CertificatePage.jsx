@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 
 import Button from "../components/Button.jsx";
+import SkeletonCard from "../components/SkeletonCard.jsx";
 import { getCertificateByCourse } from "../services/certificateApi.js";
 import { getCourseById } from "../services/courseApi.js";
 
@@ -15,12 +16,10 @@ function CertificatePage() {
   const [courseTitle, setCourseTitle] = useState("");
   const [issuedAt, setIssuedAt] = useState("");
   const [certificateId, setCertificateId] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadCertificatePage();
-  }, [courseId]);
-
-  async function loadCertificatePage() {
+  const loadCertificatePage = useCallback(async () => {
+    setLoading(true);
     try {
       const [certificate, course] = await Promise.all([
         getCertificateByCourse(courseId, token),
@@ -31,8 +30,14 @@ function CertificatePage() {
       setCertificateId(certificate.id);
     } catch (error) {
       toast.error(error.message);
+    } finally {
+      setLoading(false);
     }
-  }
+  }, [courseId, token]);
+
+  useEffect(() => {
+    loadCertificatePage();
+  }, [loadCertificatePage]);
 
   let userName = "Student";
   if (user) {
@@ -55,6 +60,9 @@ function CertificatePage() {
         </div>
       </div>
 
+      {loading && <SkeletonCard lines={5} />}
+
+      {!loading && (
       <article className="certificate-box">
         <div className="certificate-border">
           <p className="certificate-label">StudentCoursera</p>
@@ -69,6 +77,7 @@ function CertificatePage() {
           </div>
         </div>
       </article>
+      )}
     </section>
   );
 }

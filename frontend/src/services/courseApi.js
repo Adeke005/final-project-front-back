@@ -12,6 +12,20 @@ export function getCoursesPaginated(token, limit = 10, offset = 0) {
   return requestApi(`/courses?${query.toString()}`, { token });
 }
 
+export function getCoursesFiltered(token, filters = {}) {
+  const query = new URLSearchParams();
+  if (filters.search) {
+    query.set("search", filters.search);
+  }
+  if (filters.categoryId && filters.categoryId !== "all") {
+    query.set("category_id", String(filters.categoryId));
+  }
+  if (filters.sortBy) {
+    query.set("sort_by", filters.sortBy);
+  }
+  return requestApi(`/courses${query.toString() ? `?${query.toString()}` : ""}`, { token });
+}
+
 export function getCourseById(courseId, token) {
   return requestApi(`/courses/${courseId}`, { token });
 }
@@ -35,6 +49,18 @@ export function updateCourse(courseId, payload, token) {
 export function deleteCourse(courseId, token) {
   return requestApi(`/courses/${courseId}`, {
     method: "DELETE",
+    token,
+  });
+}
+
+export function getCourseRatingSummary(courseId, token) {
+  return requestApi(`/courses/${courseId}/rating`, { token });
+}
+
+export function setCourseRating(courseId, rating, token) {
+  return requestApi(`/courses/${courseId}/rating`, {
+    method: "POST",
+    body: { rating },
     token,
   });
 }

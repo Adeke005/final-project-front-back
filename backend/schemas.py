@@ -103,6 +103,7 @@ class CourseOut(BaseModel):
     owner_email: Optional[EmailStr] = None
     lessons: list[LessonOut] = Field(default_factory=list)
     categories: list[CategoryOut] = Field(default_factory=list)
+    average_rating: Optional[float] = None
 
 
 class QuizCreate(BaseModel):
@@ -156,3 +157,60 @@ class QuizResultOut(BaseModel):
     correct_answers: int
     certificate: Optional[CertificateOut] = None
     progress: Optional[UserProgressOut] = None
+
+
+class CourseRatingSetSchema(BaseModel):
+    rating: int = Field(ge=1, le=5)
+
+
+class CourseRatingSummaryOut(BaseModel):
+    course_id: int
+    total_ratings: int
+    average_rating: Optional[float] = None
+    user_rating: Optional[int] = None
+
+
+class UserProfileOut(BaseModel):
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    timezone: Optional[str] = None
+
+
+class UserProfileUpdateSchema(BaseModel):
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    timezone: Optional[str] = None
+
+
+class AccountMeOut(BaseModel):
+    user: UserOut
+    profile: UserProfileOut
+
+
+class ChangePasswordSchema(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class SessionOut(BaseModel):
+    id: int
+    created_at: datetime
+    expires_at: datetime
+    user_agent: Optional[str] = None
+    ip_address: Optional[str] = None
+    is_current: bool = False
+
+
+class EmailRequestSchema(BaseModel):
+    email: EmailStr
+
+
+class VerifyEmailSchema(BaseModel):
+    token: str
+
+
+class PasswordResetConfirmSchema(BaseModel):
+    token: str
+    new_password: str

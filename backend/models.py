@@ -22,6 +22,47 @@ class User(Base):
     role = Column(String(20), nullable=False, default="user")
     is_banned = Column(Boolean, nullable=False, default=False)
 
+    is_verified = Column(Boolean, nullable=False, default=False)
+
+    verification_token = Column(String(255), nullable=True)
+
+    verification_token_expires_at = Column(DateTime, nullable=True)
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    full_name = Column(String(255), nullable=True)
+    avatar_url = Column(String(1024), nullable=True)
+    bio = Column(Text, nullable=True)
+    timezone = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class UserRefreshToken(Base):
+    __tablename__ = "user_refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    user_agent = Column(String(255), nullable=True)
+    ip_address = Column(String(100), nullable=True)
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String(255), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+
 
 class Course(Base):
     __tablename__ = "courses"
@@ -39,6 +80,7 @@ class Course(Base):
 
     quizzes = relationship("Quiz", back_populates="course", cascade="all, delete-orphan")
     assignments = relationship("Assignment", back_populates="course", cascade="all, delete-orphan")
+    ratings = relationship("CourseRating", back_populates="course", cascade="all, delete-orphan")
 
 
 class Lesson(Base):
@@ -84,6 +126,18 @@ class Assignment(Base):
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
 
     course = relationship("Course", back_populates="assignments")
+
+
+class CourseRating(Base):
+    __tablename__ = "course_ratings"
+    __table_args__ = (UniqueConstraint("user_id", "course_id", name="uq_user_course_rating"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    rating = Column(Integer, nullable=False)
+
+    course = relationship("Course", back_populates="ratings")
 
 
 class Certificate(Base):

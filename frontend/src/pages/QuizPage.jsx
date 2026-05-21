@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 
 import Button from "../components/Button.jsx";
 import Input from "../components/Input.jsx";
+import SkeletonCard from "../components/SkeletonCard.jsx";
 import { getQuizByCourse, submitQuiz } from "../services/quizApi.js";
 
 function QuizPage() {
@@ -14,12 +15,10 @@ function QuizPage() {
 
   const [questions, setQuestions] = useState([]);
   const [answersById, setAnswersById] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadQuiz();
-  }, [courseId]);
-
-  async function loadQuiz() {
+  const loadQuiz = useCallback(async () => {
+    setLoading(true);
     try {
       const quizList = await getQuizByCourse(courseId, token);
       setQuestions(quizList);
@@ -30,8 +29,14 @@ function QuizPage() {
       setAnswersById(initialAnswers);
     } catch (error) {
       toast.error(error.message);
+    } finally {
+      setLoading(false);
     }
-  }
+  }, [courseId, token]);
+
+  useEffect(() => {
+    loadQuiz();
+  }, [loadQuiz]);
 
   function setAnswer(quizId, value) {
     setAnswersById({
@@ -79,6 +84,9 @@ function QuizPage() {
         <Link to={`/course/${courseId}`} className="btn btn-secondary">Back To Course</Link>
       </div>
 
+      {loading && <SkeletonCard lines={4} />}
+
+      {!loading && (
       <form className="card form quiz-box" onSubmit={submitQuizAnswers}>
         {questions.map((question) => (
           <article key={question.id} className="quiz-question-block">
@@ -145,7 +153,9 @@ function QuizPage() {
         ))}
 
         {questions.length > 0 && <Button text="Submit Quiz" type="submit" />}
+        {questions.length === 0 && <p className="small-text">No quiz questions available yet.</p>}
       </form>
+      )}
     </section>
   );
 }

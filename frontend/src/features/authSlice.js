@@ -11,7 +11,7 @@ function readAuthState() {
 
   try {
     return { token, refreshToken, user: JSON.parse(userText) };
-  } catch (error) {
+  } catch {
     return { token: null, refreshToken: null, user: null };
   }
 }

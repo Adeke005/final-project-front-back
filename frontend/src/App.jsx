@@ -1,14 +1,18 @@
-import { Navigate, Route, Routes } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 
 import Navbar from "./components/Navbar.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import { clearAuth } from "./features/authSlice.js";
 import LoginPage from "./pages/LoginPage.jsx";
 import RegisterPage from "./pages/RegisterPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import CoursePage from "./pages/CoursePage.jsx";
 import QuizPage from "./pages/QuizPage.jsx";
 import CertificatePage from "./pages/CertificatePage.jsx";
+import AccountPage from "./pages/AccountPage.jsx";
+import VerifyEmailPage from "./pages/VerifyEmailPage.jsx";
 
 function getThemeClass(user) {
   if (!user) {
@@ -27,9 +31,23 @@ function getThemeClass(user) {
 }
 
 function App() {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
   const user = useSelector((state) => state.auth.user);
   const themeClass = getThemeClass(user);
   const sidebarLayout = user && (user.role === "admin" || user.role === "instructor");
+
+  useEffect(() => {
+    function onAuthExpired() {
+      dispatch(clearAuth());
+      navigate("/login");
+    }
+
+    window.addEventListener("auth:expired", onAuthExpired);
+    return () => {
+      window.removeEventListener("auth:expired", onAuthExpired);
+    };
+  }, [dispatch, navigate]);
 
   return (
     <div className={`app ${themeClass} ${sidebarLayout ? "app-sidebar-layout" : "app-top-layout"}`}>
@@ -38,6 +56,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route
             path="/dashboard"
             element={
@@ -67,6 +86,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <CertificatePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/account"
+            element={
+              <ProtectedRoute>
+                <AccountPage />
               </ProtectedRoute>
             }
           />

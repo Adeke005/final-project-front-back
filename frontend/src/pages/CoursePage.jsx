@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
@@ -7,15 +7,24 @@ import Button from "../components/Button.jsx";
 import DeleteModal from "../components/DeleteModal.jsx";
 import Input from "../components/Input.jsx";
 import Modal from "../components/Modal.jsx";
+import SkeletonCard from "../components/SkeletonCard.jsx";
 import { getCourseProgress, startCourseProgress } from "../services/progressApi.js";
+import {
+  getCompletedLessonIds,
+  getCompletionPercent,
+  isLessonCompleted,
+  toggleLessonCompletion,
+} from "../utils/courseProgress.js";
 import {
   createAssignment,
   createLesson,
   deleteAssignment,
   deleteLesson,
+  getCourseRatingSummary,
   getAssignmentsByCourse,
   getCourseById,
   getLessonsByCoursePaginated,
+  setCourseRating,
   updateAssignment,
   updateLesson,
 } from "../services/courseApi.js";
@@ -37,6 +46,12 @@ function CoursePage() {
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [progress, setProgress] = useState(null);
   const [learningStarted, setLearningStarted] = useState(false);
+  const [ratingSummary, setRatingSummary] = useState({
+    average_rating: null,
+    total_ratings: 0,
+    user_rating: null,
+  });
+  const [_lessonProgressVersion, setLessonProgressVersion] = useState(0);
 
   const [createLessonTitle, setCreateLessonTitle] = useState("");
   const [createLessonContent, setCreateLessonContent] = useState("");
@@ -67,15 +82,7 @@ function CoursePage() {
   const [hasMoreLessons, setHasMoreLessons] = useState(false);
   const lessonLimit = 10;
 
-  useEffect(() => {
-    loadCoursePageData();
-  }, [id, lessonOffset]);
-
-  useEffect(() => {
-    setLessonOffset(0);
-  }, [id]);
-
-  async function loadCoursePageData() {
+  const loadCoursePageData = useCallback(async () => {
     try {
       const [currentCourse, lessonList, assignmentList] = await Promise.all([
         getCourseById(id, token),
@@ -90,7 +97,7 @@ function CoursePage() {
       try {
         const quizList = await getQuizByCourse(id, token);
         setQuizQuestions(quizList);
-      } catch (error) {
+      } catch {
         setQuizQuestions([]);
       }
 
@@ -98,14 +105,33 @@ function CoursePage() {
         const progressData = await getCourseProgress(id, token);
         setProgress(progressData);
         setLearningStarted(true);
-      } catch (error) {
+      } catch {
         setProgress(null);
         setLearningStarted(false);
+      }
+
+      try {
+        const summary = await getCourseRatingSummary(id, token);
+        setRatingSummary(summary);
+      } catch {
+        setRatingSummary({
+          average_rating: null,
+          total_ratings: 0,
+          user_rating: null,
+        });
       }
     } catch (error) {
       toast.error(error.message);
     }
-  }
+  }, [id, lessonLimit, lessonOffset, token]);
+
+  useEffect(() => {
+    loadCoursePageData();
+  }, [loadCoursePageData]);
+
+  useEffect(() => {
+    setLessonOffset(0);
+  }, [id]);
 
   function canManageCourse() {
     if (!course || !user) {
@@ -135,6 +161,63 @@ function CoursePage() {
       setLearningStarted(true);
       toast.success("Learning started");
     } catch (error) {
+      toast.error(error.message);
+    }
+  }
+
+  const completedLessonIds = getCompletedLessonIds(user?.id, id);
+  const completionPercent = getCompletionPercent(
+    { id, lessons },
+    progress,
+    user?.id,
+  );
+  const nextLessonToContinue = lessons.find((lesson) => !completedLessonIds.includes(lesson.id));
+
+  async function handleToggleLessonCompletion(lessonId) {
+    const isNowCompleted = toggleLessonCompletion(user?.id, id, lessonId);
+    setLessonProgressVersion((currentValue) => currentValue + 1);
+
+    if (isNowCompleted && !learningStarted) {
+      try {
+        const progressData = await startCourseProgress(id, token);
+        setProgress(progressData);
+        setLearningStarted(true);
+      } catch {
+        // Keep local completion even if progress API is unavailable.
+      }
+    }
+  }
+
+  async function handleRateCourse(nextRating) {
+    const previousSummary = ratingSummary;
+    const hasExistingVote = previousSummary.user_rating !== null;
+    const totalRatings = previousSummary.total_ratings;
+    const averageRating = previousSummary.average_rating || 0;
+
+    let optimisticTotal = totalRatings;
+    let optimisticAverage = averageRating;
+
+    if (hasExistingVote) {
+      const updatedSum = averageRating * totalRatings - previousSummary.user_rating + nextRating;
+      optimisticAverage = totalRatings === 0 ? nextRating : Number((updatedSum / totalRatings).toFixed(2));
+    } else {
+      const updatedSum = averageRating * totalRatings + nextRating;
+      optimisticTotal = totalRatings + 1;
+      optimisticAverage = Number((updatedSum / optimisticTotal).toFixed(2));
+    }
+
+    setRatingSummary({
+      average_rating: optimisticAverage,
+      total_ratings: optimisticTotal,
+      user_rating: nextRating,
+    });
+
+    try {
+      const serverSummary = await setCourseRating(id, nextRating, token);
+      setRatingSummary(serverSummary);
+      toast.success("Rating saved");
+    } catch (error) {
+      setRatingSummary(previousSummary);
       toast.error(error.message);
     }
   }
@@ -340,7 +423,12 @@ function CoursePage() {
   }
 
   if (!course) {
-    return <section className="page">Loading course...</section>;
+    return (
+      <section className="page">
+        <SkeletonCard lines={5} />
+        <SkeletonCard lines={4} />
+      </section>
+    );
   }
 
   const canManage = canManageCourse();
@@ -361,7 +449,40 @@ function CoursePage() {
           <span>3. Quiz</span>
           <span>4. Certificate</span>
         </div>
+        <div className="course-progress">
+          <div className="course-progress-top">
+            <span className="small-text">Completion</span>
+            <strong>{completionPercent}%</strong>
+          </div>
+          <div className="progress-bar-track">
+            <div className="progress-bar-fill" style={{ width: `${completionPercent}%` }} />
+          </div>
+          {nextLessonToContinue && (
+            <p className="small-text">Continue with lesson: {nextLessonToContinue.title}</p>
+          )}
+        </div>
         {progress && progress.completed && <p className="status-completed">Course completed</p>}
+        <div className="course-rating-box">
+          <div className="section-header">
+            <h3>Course Rating</h3>
+            <span className="small-text">
+              Average: {ratingSummary.average_rating ?? "-"} ({ratingSummary.total_ratings} votes)
+            </span>
+          </div>
+          <div className="row">
+            {[1, 2, 3, 4, 5].map((starValue) => (
+              <button
+                key={starValue}
+                type="button"
+                className={`rating-star ${ratingSummary.user_rating >= starValue ? "rating-star-active" : ""}`}
+                onClick={() => handleRateCourse(starValue)}
+              >
+                {starValue}
+              </button>
+            ))}
+            {ratingSummary.user_rating && <span className="small-text">Your rating: {ratingSummary.user_rating}</span>}
+          </div>
+        </div>
       </article>
 
       {!learningStarted && (
@@ -387,6 +508,13 @@ function CoursePage() {
               <article className="lesson-card" key={lesson.id}>
                 <h4>{lesson.title}</h4>
                 <p>{lesson.content}</p>
+                <div className="row">
+                  <Button
+                    text={isLessonCompleted(user?.id, id, lesson.id) ? "Completed" : "Mark Complete"}
+                    variant={isLessonCompleted(user?.id, id, lesson.id) ? "secondary" : "primary"}
+                    onClick={() => handleToggleLessonCompletion(lesson.id)}
+                  />
+                </div>
                 {canManage && (
                   <div className="row">
                     <Button text="Edit" variant="secondary" onClick={() => openEditLessonModal(lesson)} />

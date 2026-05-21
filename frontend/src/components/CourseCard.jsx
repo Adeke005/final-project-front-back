@@ -1,6 +1,6 @@
 import Button from "./Button.jsx";
 
-function CourseCard({ course, canEditCourse, onOpenCourse, onEditCourse, onDeleteCourse }) {
+function CourseCard({ course, canEditCourse, onOpenCourse, onEditCourse, onDeleteCourse, progressPercent = 0 }) {
   let categoryText = "No categories";
   if (course.categories && course.categories.length > 0) {
     categoryText = course.categories.map((category) => category.name).join(", ");
@@ -22,6 +22,15 @@ function CourseCard({ course, canEditCourse, onOpenCourse, onEditCourse, onDelet
       </div>
       <p className="course-description">{course.description}</p>
       <p className="small-text course-categories">Categories: {categoryText}</p>
+      <div className="course-progress">
+        <div className="course-progress-top">
+          <span className="small-text">Progress</span>
+          <strong>{progressPercent}%</strong>
+        </div>
+        <div className="progress-bar-track">
+          <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
+        </div>
+      </div>
       <div className="row">
         <Button text="Open Course" onClick={() => onOpenCourse(course)} />
         {canEditCourse && <Button text="Edit" variant="secondary" onClick={() => onEditCourse(course)} />}
