@@ -12,3 +12,4 @@ pytest
 slowapi
 redis
 alembic
+resend

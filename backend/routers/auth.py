@@ -30,6 +30,7 @@ from schemas import (
     UserOut,
     VerifyEmailSchema,
 )
+from email_service import send_verification_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -60,13 +61,11 @@ def register_user(request: Request, payload: RegisterSchema, db: Session = Depen
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    print(
-    f"VERIFY LINK: {FRONTEND_URL}/verify-email?token={verification_token}"
-    )
-    enqueue_email_job(
-        to_email=new_user.email,
-        subject="Verify your account",
-        body=f"Please verify your account: {FRONTEND_URL}/verify-email?token={verification_token}",
+    verify_url = f"{FRONTEND_URL}/verify-email?token={verification_token}"
+
+    send_verification_email(
+    to_email=new_user.email,
+    verify_url=verify_url
     )
     return new_user
 
@@ -160,11 +159,12 @@ def request_email_verification(payload: EmailRequestSchema, db: Session = Depend
         user.verification_token = verification_token
         user.verification_token_expires_at = datetime.utcnow() + timedelta(hours=24)
         db.commit()
-        enqueue_email_job(
-            to_email=user.email,
-            subject="Verify your account",
-            body=f"Please verify your account: {FRONTEND_URL}/verify-email?token={verification_token}",
-        )
+        verify_url = f"{FRONTEND_URL}/verify-email?token={verification_token}"
+
+    send_verification_email(
+    to_email=user.email,
+    verify_url=verify_url
+    )
     return {"message": "If your email exists, a verification link was sent"}
 
 
