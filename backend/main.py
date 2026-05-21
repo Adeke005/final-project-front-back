@@ -11,16 +11,20 @@ from routers import account, assignments, auth, categories, certificate, courses
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="StudentCoursera")
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://final-project-front-back.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
 
 app.include_router(auth.router)
 app.include_router(account.router)
