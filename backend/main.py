@@ -24,13 +24,13 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(courses.router)
-app.include_router(lessons.router)
+#app.include_router(lessons.router)
 app.include_router(categories.router)
-app.include_router(quiz.router)
-app.include_router(certificate.router)
+#app.include_router(quiz.router)
+#app.include_router(certificate.router)
 app.include_router(users.router)
-app.include_router(progress.router)
-app.include_router(assignments.router)
+#app.include_router(progress.router)
+#app.include_router(assignments.router)
 
 
 @app.get("/")
