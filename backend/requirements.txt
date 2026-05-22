@@ -5,7 +5,7 @@ psycopg[binary]
 psycopg2-binary
 python-jose[cryptography]
 passlib[bcrypt]==1.7.4
-bcrypt==4.1.2
+bcrypt==4.0.1
 python-dotenv
 pydantic[email]
 pytest
