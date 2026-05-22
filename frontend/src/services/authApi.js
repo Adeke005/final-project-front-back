@@ -35,3 +35,19 @@ export function logoutUser(refreshToken, token) {
     skipAuthRefresh: true,
   });
 }
+
+export function requestPasswordReset(payload) {
+  return requestApi("/auth/password-reset/request", {
+    method: "POST",
+    body: payload,
+    skipAuthRefresh: true,
+  });
+}
+
+export function confirmPasswordReset(payload) {
+  return requestApi("/auth/password-reset/confirm", {
+    method: "POST",
+    body: payload,
+    skipAuthRefresh: true,
+  });
+}

@@ -44,6 +44,9 @@ function LoginPage() {
           <Button text="Login" type="submit" />
         </form>
         <p className="small-text">
+          <Link to="/forgot-password">Forgot password?</Link>
+        </p>
+        <p className="small-text">
           No account? <Link to="/register">Register</Link>
         </p>
       </article>

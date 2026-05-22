@@ -13,6 +13,8 @@ import QuizPage from "./pages/QuizPage.jsx";
 import CertificatePage from "./pages/CertificatePage.jsx";
 import AccountPage from "./pages/AccountPage.jsx";
 import VerifyEmailPage from "./pages/VerifyEmailPage.jsx";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
+import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 
 function getThemeClass(user) {
   if (!user) {
@@ -57,6 +59,8 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/dashboard"
             element={

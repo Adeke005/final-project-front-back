@@ -1,0 +1,67 @@
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: DockerFile
+    container_name: backend_api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/courses_db
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_URL: http://localhost:5173
+      SECRET_KEY: f651683de96be9c994212322a12fe674be3929f69d824c56be580928eaf531d4
+      ACCESS_TOKEN_MINUTES: 120
+      REFRESH_TOKEN_MINUTES: 10080
+      REQUIRE_EMAIL_VERIFICATION: "true"
+      RESEND_API_KEY: re_YBrKghqr_uMuxWj9jnrVupv8kJwcZaa56
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: DockerFile
+    container_name: backend_worker
+    command: ["python", "worker.py"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/courses_db
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_URL: http://localhost:5173
+      SECRET_KEY: f651683de96be9c994212322a12fe674be3929f69d824c56be580928eaf531d4
+      REQUIRE_EMAIL_VERIFICATION: "true"
+      RESEND_API_KEY: re_YBrKghqr_uMuxWj9jnrVupv8kJwcZaa56
+    depends_on:
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: courses_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d courses_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    restart: always
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

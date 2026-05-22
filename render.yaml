@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: final-project-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    # Runs alembic upgrade head on startup to apply migrations, then starts uvicorn
+    startCommand: "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: final-project-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: final-project-redis
+          type: redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ACCESS_TOKEN_MINUTES
+        value: "120"
+      - key: REFRESH_TOKEN_MINUTES
+        value: "10080"
+      - key: REQUIRE_EMAIL_VERIFICATION
+        value: "true"
+      - key: FRONTEND_URL
+        value: https://final-project-front-back.vercel.app
+      - key: RESEND_API_KEY
+        sync: false
+
+databases:
+  - name: final-project-db
+    plan: free
+
+redis:
+  - name: final-project-redis
+    plan: free
+    ipAllowList: [] # Redis is only accessible internally within the Render account

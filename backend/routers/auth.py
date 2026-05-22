@@ -1,7 +1,7 @@
-from datetime import datetime
-from datetime import timedelta
+import logging
 import os
 import secrets
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -30,7 +30,8 @@ from schemas import (
     UserOut,
     VerifyEmailSchema,
 )
-from email_service import send_verification_email
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -38,6 +39,9 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 REQUIRE_EMAIL_VERIFICATION = os.getenv("REQUIRE_EMAIL_VERIFICATION", "false").lower() == "true"
 
 
+# ─────────────────────────────────────────────────────────────
+# REGISTER
+# ─────────────────────────────────────────────────────────────
 @router.post("/register", response_model=UserOut)
 @limiter.limit("5/minute")
 def register_user(request: Request, payload: RegisterSchema, db: Session = Depends(get_db)):
@@ -61,15 +65,21 @@ def register_user(request: Request, payload: RegisterSchema, db: Session = Depen
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    verify_url = f"{FRONTEND_URL}/verify-email?token={verification_token}"
 
-    send_verification_email(
-    to_email=new_user.email,
-    verify_url=verify_url
+    verify_url = f"{FRONTEND_URL}/verify-email?token={verification_token}"
+    # Non-blocking: enqueue into Redis → worker delivers via SMTP
+    enqueue_email_job(
+        to_email=new_user.email,
+        subject="Verify your StudentCoursera account",
+        body=f"Please verify your email address by clicking the link below:\n{verify_url}",
     )
+
     return new_user
 
 
+# ─────────────────────────────────────────────────────────────
+# LOGIN
+# ─────────────────────────────────────────────────────────────
 @router.post("/login", response_model=TokenOut)
 @limiter.limit("5/minute")
 def login_user(request: Request, payload: LoginSchema, db: Session = Depends(get_db)):
@@ -77,19 +87,24 @@ def login_user(request: Request, payload: LoginSchema, db: Session = Depends(get
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    is_valid_password = verify_password(payload.password, user.password)
-    if not is_valid_password:
+    if not verify_password(payload.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
     if user.is_banned:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Your account is banned")
+
     if REQUIRE_EMAIL_VERIFICATION and not user.is_verified:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Please verify your email")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please check your inbox or request a new verification link.",
+        )
 
     access_token = create_access_token(user.id, user.role)
     refresh_token = create_refresh_token(user.id)
     token_payload = decode_refresh_token(refresh_token)
+
     expires_at = datetime.utcnow()
-    if token_payload is not None and token_payload.get("exp") is not None:
+    if token_payload and token_payload.get("exp"):
         expires_at = datetime.fromtimestamp(token_payload["exp"])
 
     token_record = UserRefreshToken(
@@ -105,6 +120,9 @@ def login_user(request: Request, payload: LoginSchema, db: Session = Depends(get
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user}
 
 
+# ─────────────────────────────────────────────────────────────
+# REFRESH TOKEN
+# ─────────────────────────────────────────────────────────────
 @router.post("/refresh", response_model=RefreshTokenOut)
 def refresh_access_token(payload: RefreshTokenSchema, db: Session = Depends(get_db)):
     token_payload = decode_refresh_token(payload.refresh_token)
@@ -119,6 +137,7 @@ def refresh_access_token(payload: RefreshTokenSchema, db: Session = Depends(get_
         UserRefreshToken.user_id == user_id,
         UserRefreshToken.token_hash == get_token_hash(payload.refresh_token),
     ).first()
+
     if token_record is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
     if token_record.revoked_at is not None:
@@ -136,6 +155,9 @@ def refresh_access_token(payload: RefreshTokenSchema, db: Session = Depends(get_
     return {"access_token": new_access_token, "token_type": "bearer"}
 
 
+# ─────────────────────────────────────────────────────────────
+# LOGOUT
+# ─────────────────────────────────────────────────────────────
 @router.post("/logout")
 def logout_user(payload: RefreshTokenSchema, db: Session = Depends(get_db)):
     token_hash = get_token_hash(payload.refresh_token)
@@ -146,51 +168,67 @@ def logout_user(payload: RefreshTokenSchema, db: Session = Depends(get_db)):
     return {"message": "Logged out"}
 
 
+# ─────────────────────────────────────────────────────────────
+# CURRENT USER
+# ─────────────────────────────────────────────────────────────
 @router.get("/me", response_model=UserOut)
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+# ─────────────────────────────────────────────────────────────
+# EMAIL VERIFICATION — REQUEST (resend link)
+# ─────────────────────────────────────────────────────────────
 @router.post("/verify-email/request")
-def request_email_verification(payload: EmailRequestSchema, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def request_email_verification(request: Request, payload: EmailRequestSchema, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
 
-    if user is not None:
+    # Always return same message to prevent user enumeration
+    if user is not None and not user.is_verified:
         verification_token = secrets.token_urlsafe(32)
-
         user.verification_token = verification_token
         user.verification_token_expires_at = datetime.utcnow() + timedelta(hours=24)
-
         db.commit()
 
         verify_url = f"{FRONTEND_URL}/verify-email?token={verification_token}"
-
-        send_verification_email(
+        enqueue_email_job(
             to_email=user.email,
-            verify_url=verify_url
+            subject="Verify your StudentCoursera account",
+            body=f"Please verify your email address by clicking the link below:\n{verify_url}",
         )
 
-    return {"message": "If your email exists, a verification link was sent"}
+    return {"message": "If your email exists and is not yet verified, a link was sent."}
 
 
+# ─────────────────────────────────────────────────────────────
+# EMAIL VERIFICATION — CONFIRM
+# ─────────────────────────────────────────────────────────────
 @router.post("/verify-email")
 def verify_email(payload: VerifyEmailSchema, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.verification_token == payload.token).first()
     if user is None:
         raise HTTPException(status_code=400, detail="Invalid verification token")
+
     if user.verification_token_expires_at is None or user.verification_token_expires_at < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Verification token expired")
+        raise HTTPException(status_code=400, detail="Verification token has expired. Please request a new one.")
 
     user.is_verified = True
-    user.verification_token = None
+    user.verification_token = None          # invalidate — single use
     user.verification_token_expires_at = None
     db.commit()
-    return {"message": "Email verified"}
+
+    return {"message": "Email verified successfully. You can now log in."}
 
 
+# ─────────────────────────────────────────────────────────────
+# PASSWORD RESET — REQUEST
+# ─────────────────────────────────────────────────────────────
 @router.post("/password-reset/request")
-def request_password_reset(payload: EmailRequestSchema, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def request_password_reset(request: Request, payload: EmailRequestSchema, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
+
     if user is not None:
         reset_token = secrets.token_urlsafe(32)
         token_row = PasswordResetToken(
@@ -200,27 +238,36 @@ def request_password_reset(payload: EmailRequestSchema, db: Session = Depends(ge
         )
         db.add(token_row)
         db.commit()
+
+        reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
         enqueue_email_job(
             to_email=user.email,
-            subject="Password reset",
-            body=f"Reset your password: {FRONTEND_URL}/reset-password?token={reset_token}",
+            subject="Reset your StudentCoursera password",
+            body=f"Click the link below to reset your password. This link expires in 1 hour:\n{reset_url}",
         )
-    return {"message": "If your email exists, a reset link was sent"}
+
+    return {"message": "If your email exists, a password reset link was sent."}
 
 
+# ─────────────────────────────────────────────────────────────
+# PASSWORD RESET — CONFIRM
+# ─────────────────────────────────────────────────────────────
 @router.post("/password-reset/confirm")
 def confirm_password_reset(payload: PasswordResetConfirmSchema, db: Session = Depends(get_db)):
     token_row = db.query(PasswordResetToken).filter(PasswordResetToken.token == payload.token).first()
+
     if token_row is None or token_row.used_at is not None:
-        raise HTTPException(status_code=400, detail="Invalid reset token")
+        raise HTTPException(status_code=400, detail="Invalid or already used reset token")
+
     if token_row.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Reset token expired")
+        raise HTTPException(status_code=400, detail="Reset token has expired. Please request a new one.")
 
     user = db.query(User).filter(User.id == token_row.user_id).first()
     if user is None:
         raise HTTPException(status_code=400, detail="Invalid reset token")
 
     user.password = hash_password(payload.new_password)
-    token_row.used_at = datetime.utcnow()
+    token_row.used_at = datetime.utcnow()  # single-use: mark as consumed
     db.commit()
-    return {"message": "Password reset successful"}
+
+    return {"message": "Password reset successful. You can now log in with your new password."}
