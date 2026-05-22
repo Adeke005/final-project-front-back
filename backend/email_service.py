@@ -5,7 +5,7 @@ resend.api_key = os.getenv("RESEND_API_KEY")
 
 
 def send_verification_email(to_email: str, verify_url: str):
-    resend.Emails.send({
+    response = resend.Emails.send({
         "from": "onboarding@resend.dev",
         "to": to_email,
         "subject": "Verify your account",
@@ -15,3 +15,5 @@ def send_verification_email(to_email: str, verify_url: str):
         <a href="{verify_url}">{verify_url}</a>
         """
     })
+
+    print("RESEND RESPONSE:", response)
