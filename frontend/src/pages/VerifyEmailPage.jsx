@@ -11,9 +11,12 @@ function VerifyEmailPage() {
 
     async function verifyEmail() {
       try {
-        await axios.post("http://localhost:8000/auth/verify-email", {
-          token,
-        });
+        await axios.post(
+          `${import.meta.env.VITE_API_URL}/auth/verify-email`,
+          {
+            token,
+          }
+        );
 
         setMessage("Email verified successfully");
       } catch (error) {
