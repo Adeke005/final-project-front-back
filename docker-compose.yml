@@ -10,11 +10,18 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/courses_db
       REDIS_URL: redis://redis:6379/0
       FRONTEND_URL: http://localhost:5173
+      BACKEND_URL: http://localhost:8000
       SECRET_KEY: f651683de96be9c994212322a12fe674be3929f69d824c56be580928eaf531d4
       ACCESS_TOKEN_MINUTES: 120
       REFRESH_TOKEN_MINUTES: 10080
       REQUIRE_EMAIL_VERIFICATION: "true"
-      RESEND_API_KEY: re_YBrKghqr_uMuxWj9jnrVupv8kJwcZaa56
+      # ── SMTP ── fill in your credentials ──────────────────
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-StudentCoursera}
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,7 +40,13 @@ services:
       FRONTEND_URL: http://localhost:5173
       SECRET_KEY: f651683de96be9c994212322a12fe674be3929f69d824c56be580928eaf531d4
       REQUIRE_EMAIL_VERIFICATION: "true"
-      RESEND_API_KEY: re_YBrKghqr_uMuxWj9jnrVupv8kJwcZaa56
+      # ── SMTP ── fill in your credentials ──────────────────
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-StudentCoursera}
     depends_on:
       redis:
         condition: service_started
