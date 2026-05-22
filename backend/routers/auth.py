@@ -154,17 +154,22 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 @router.post("/verify-email/request")
 def request_email_verification(payload: EmailRequestSchema, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
+
     if user is not None:
         verification_token = secrets.token_urlsafe(32)
+
         user.verification_token = verification_token
         user.verification_token_expires_at = datetime.utcnow() + timedelta(hours=24)
+
         db.commit()
+
         verify_url = f"{FRONTEND_URL}/verify-email?token={verification_token}"
 
-    send_verification_email(
-    to_email=user.email,
-    verify_url=verify_url
-    )
+        send_verification_email(
+            to_email=user.email,
+            verify_url=verify_url
+        )
+
     return {"message": "If your email exists, a verification link was sent"}
 
 

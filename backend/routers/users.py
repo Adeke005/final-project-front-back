@@ -13,13 +13,6 @@ router = APIRouter(prefix="/users", tags=["users"])
 def get_users(db: Session = Depends(get_db), current_admin: User = Depends(require_role(["admin"]))):
     return db.query(User).all()
 
-@router.delete("/users/reset")
-def reset_users(db: Session = Depends(get_db)):
-    db.query(User).delete()
-    db.commit()
-
-    return {"message": "All users deleted"}
-
 
 @router.patch("/{user_id}/ban", response_model=UserOut)
 def set_user_ban_status(
